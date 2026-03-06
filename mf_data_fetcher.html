@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-AMC MF Data Fetcher</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #111720;
+    --surface2: #1a2233;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #0099bb;
+    --green: #00e676;
+    --yellow: #ffd740;
+    --red: #ff5252;
+    --text: #c8d8e8;
+    --text-dim: #5a7090;
+    --text-bright: #e8f4ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: var(--text-bright); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.accent { color: var(--accent); }
+
+  /* Controls */
+  .controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 9px 20px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { background: #33ddff; transform: translateY(-1px); }
+  .btn-primary:disabled { background: var(--text-dim); color: var(--bg); cursor: not-allowed; transform: none; }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn-secondary:hover { background: rgba(0,212,255,0.08); }
+  .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-green {
+    background: var(--green);
+    color: #000;
+  }
+  .btn-green:hover { background: #33ff99; transform: translateY(-1px); }
+  .btn-green:disabled { background: var(--text-dim); color: var(--bg); cursor: not-allowed; transform: none; }
+
+  /* Filter row */
+  .filter-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex: 1;
+    flex-wrap: wrap;
+  }
+  select, input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  
+  /* Progress */
+  .progress-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .progress-wrap.visible { display: block; }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .progress-label { font-size: 12px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+  .progress-pct { font-size: 13px; font-weight: 600; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
+  .progress-bar-bg {
+    background: var(--surface2);
+    border-radius: 3px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 3px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+  .progress-log {
+    margin-top: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    height: 60px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
+  .log-ok { color: var(--green); }
+  .log-skip { color: var(--yellow); }
+  .log-err { color: var(--red); }
+
+  /* Table */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .table-header-bar {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .table-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .table-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .table-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  thead th {
+    background: var(--surface2);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 9px 10px;
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { color: var(--accent); }
+  thead th.sorted { color: var(--accent); }
+  tbody tr { border-bottom: 1px solid rgba(30,45,69,0.5); transition: background 0.1s; }
+  tbody tr:hover { background: rgba(0,212,255,0.04); }
+  tbody td { padding: 7px 10px; white-space: nowrap; }
+  td.fund-name {
+    white-space: normal;
+    max-width: 220px;
+    line-height: 1.4;
+    font-weight: 500;
+    color: var(--text-bright);
+  }
+  td.amc { color: var(--text-dim); font-size: 10px; }
+  td.cat {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  td.nav-val {
+    font-family: 'IBM Plex Mono', monospace;
+    text-align: right;
+  }
+  td.ret-pos { color: var(--green); font-family: 'IBM Plex Mono', monospace; text-align: right; }
+  td.ret-neg { color: var(--red); font-family: 'IBM Plex Mono', monospace; text-align: right; }
+  td.ret-na { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; text-align: right; }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge-matched { background: rgba(0,230,118,0.15); color: var(--green); border: 1px solid rgba(0,230,118,0.2); }
+  .badge-unmatched { background: rgba(255,82,82,0.12); color: var(--red); border: 1px solid rgba(255,82,82,0.15); }
+  .badge-pending { background: rgba(90,112,144,0.2); color: var(--text-dim); border: 1px solid var(--border); }
+  .badge-multiple { background: rgba(255,215,64,0.12); color: var(--yellow); border: 1px solid rgba(255,215,64,0.15); }
+
+  /* Match selector */
+  select.match-sel {
+    padding: 3px 6px;
+    font-size: 10px;
+    max-width: 200px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 3px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 480px;
+    width: 90%;
+  }
+  .modal h3 { font-size: 14px; color: var(--text-bright); margin-bottom: 6px; }
+  .modal p { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; line-height: 1.6; }
+  .modal .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  
+  /* Empty state */
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+  .empty-sub { font-size: 12px; }
+
+  /* NAV date */
+  .nav-date { font-size: 9px; color: var(--text-dim); display: block; }
+  
+  /* Export note */
+  .export-note {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: rgba(0,212,255,0.06);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    display: none;
+  }
+  .export-note.visible { display: block; }
+  .export-note strong { color: var(--accent); }
+
+  /* Concurrence rate band */
+  .rate-band {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .rate-ok { background: var(--green); }
+  .rate-warn { background: var(--yellow); }
+  .rate-err { background: var(--red); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">◈ AMFI</div>
+  <div class="header-title">Multi-AMC Master — Live NAV &amp; Returns Fetcher</div>
+  <div class="header-sub" id="hdrStatus">669 funds · 9 AMCs · Jan 2026</div>
+</div>
+
+<div class="main">
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Total Funds</div>
+      <div class="stat-value" id="statTotal">669</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Matched</div>
+      <div class="stat-value green" id="statMatched">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Unmatched</div>
+      <div class="stat-value red" id="statUnmatched">669</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Multi-Match</div>
+      <div class="stat-value yellow" id="statMulti">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">With Returns</div>
+      <div class="stat-value accent" id="statReturns">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">API Status</div>
+      <div class="stat-value" id="statApi" style="font-size:13px;color:var(--text-dim)">—</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-primary" id="btnFetch" onclick="startFetch()">▶ Fetch All Funds</button>
+    <button class="btn btn-secondary" id="btnStop" onclick="stopFetch()" disabled>■ Stop</button>
+    <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
+    <div class="filter-row">
+      <select id="filterAmc" onchange="applyFilters()">
+        <option value="">All AMCs</option>
+        <option>Axis MF</option>
+        <option>SBI MF</option>
+        <option>ICICI Pru</option>
+        <option>HDFC MF</option>
+        <option>Nippon India MF</option>
+        <option>Aditya Birla Sun Life MF</option>
+        <option>Tata MF</option>
+        <option>DSP MF</option>
+        <option>Mirae Asset MF</option>
+      </select>
+      <select id="filterCat" onchange="applyFilters()">
+        <option value="">All Categories</option>
+        <option>Equity</option>
+        <option>Hybrid</option>
+        <option>Debt</option>
+        <option>ETF</option>
+        <option>Index Fund</option>
+        <option>FOF</option>
+      </select>
+      <select id="filterStatus" onchange="applyFilters()">
+        <option value="">All Status</option>
+        <option value="matched">Matched</option>
+        <option value="multiple">Multiple Matches</option>
+        <option value="unmatched">Unmatched</option>
+        <option value="pending">Pending</option>
+      </select>
+      <input type="text" id="filterSearch" placeholder="Search fund name..." oninput="applyFilters()" style="width:200px;">
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="btn btn-secondary" id="btnExportCSV" onclick="exportCSV()" disabled>↓ Export CSV</button>
+      <button class="btn btn-green" id="btnExportJSON" onclick="exportJSON()" disabled>↓ Export JSON</button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <div class="progress-label" id="progressLabel">Fetching fund list from mfapi.in...</div>
+      <div class="progress-pct" id="progressPct">0%</div>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-log" id="progressLog"></div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <div class="table-header-bar">
+      <div class="table-title">Fund Data</div>
+      <div class="table-count" id="tableCount">Showing 669 funds</div>
+    </div>
+    <div class="table-scroll">
+      <table id="mainTable">
+        <thead>
+          <tr>
+            <th onclick="sortBy('row')">#</th>
+            <th onclick="sortBy('name')">Fund Name</th>
+            <th onclick="sortBy('amc')">AMC</th>
+            <th onclick="sortBy('category')">Category</th>
+            <th onclick="sortBy('status')">Status</th>
+            <th onclick="sortBy('schemeCode')">Scheme Code</th>
+            <th onclick="sortBy('nav')">NAV (₹)</th>
+            <th onclick="sortBy('r1y')">1Y Ret%</th>
+            <th onclick="sortBy('r3y')">3Y Ret%</th>
+            <th onclick="sortBy('r5y')">5Y Ret%</th>
+            <th onclick="sortBy('rInc')">Incep%</th>
+            <th>Match</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">◈</div>
+        <div class="empty-title">Ready to Fetch</div>
+        <div class="empty-sub">Click "Fetch All Funds" to pull live NAV data from api.mfapi.in for all 669 funds.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="export-note" id="exportNote">
+    <strong>Export ready.</strong> The JSON export contains all matched funds with scheme codes, NAV, and calculated returns. You can upload this back to Claude to automatically update the Excel file — or use the CSV for direct review.
+  </div>
+
+</div>
+
+<!-- Modal for multi-match -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Multiple matches found</h3>
+    <p id="modalBody"></p>
+    <div id="modalOptions"></div>
+    <div class="modal-btns" style="margin-top:14px;">
+      <button class="btn btn-secondary" onclick="closeModal()">Skip</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== FUND DATA ====================
+const FUNDS = [{"row":3,"name":"Axis Large Cap Fund","amc":"Axis MF","category":"Equity","subCategory":"Large Cap"},{"row":4,"name":"Axis ELSS Tax Saver Fund","amc":"Axis MF","category":"Equity","subCategory":"ELSS"},{"row":5,"name":"Axis Midcap Fund","amc":"Axis MF","category":"Equity","subCategory":"Mid Cap"},{"row":6,"name":"Axis Small Cap Fund","amc":"Axis MF","category":"Equity","subCategory":"Small Cap"},{"row":7,"name":"Axis Large & Mid Cap Fund","amc":"Axis MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":8,"name":"Axis Flexi Cap Fund","amc":"Axis MF","category":"Equity","subCategory":"Flexi Cap"},{"row":9,"name":"Axis Focused Fund","amc":"Axis MF","category":"Equity","subCategory":"Focused"},{"row":10,"name":"Axis Multicap Fund","amc":"Axis MF","category":"Equity","subCategory":"Multi Cap"},{"row":11,"name":"Axis India Manufacturing Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – Manufacturing"},{"row":12,"name":"Axis Consumption Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – Consumption"},{"row":13,"name":"Axis Business Cycles Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – Business Cycles"},{"row":14,"name":"Axis Value Fund","amc":"Axis MF","category":"Equity","subCategory":"Value"},{"row":15,"name":"Axis ESG Integration Strategy Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – ESG"},{"row":16,"name":"Axis Innovation Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – Innovation"},{"row":17,"name":"Axis Services Opportunities Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – Services"},{"row":18,"name":"Axis Momentum Fund","amc":"Axis MF","category":"Equity","subCategory":"Thematic – Momentum"},{"row":19,"name":"Axis Quant Fund","amc":"Axis MF","category":"Equity","subCategory":"Quant"},{"row":20,"name":"Axis Arbitrage Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":21,"name":"Axis Balanced Advantage Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":22,"name":"Axis Multi Asset Allocation Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Multi Asset"},{"row":23,"name":"Axis Aggressive Hybrid Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":24,"name":"Axis Equity Savings Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":25,"name":"Axis Children's Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Solution – Children"},{"row":26,"name":"Axis Retirement Fund – Aggressive","amc":"Axis MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":27,"name":"Axis Retirement Fund – Dynamic","amc":"Axis MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":28,"name":"Axis Conservative Hybrid Fund","amc":"Axis MF","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":29,"name":"Axis Retirement Fund – Conservative","amc":"Axis MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":30,"name":"Axis Liquid Fund","amc":"Axis MF","category":"Debt","subCategory":"Liquid"},{"row":31,"name":"Axis Overnight Fund","amc":"Axis MF","category":"Debt","subCategory":"Overnight"},{"row":32,"name":"Axis Money Market Fund","amc":"Axis MF","category":"Debt","subCategory":"Money Market"},{"row":33,"name":"Axis Banking & PSU Debt Fund","amc":"Axis MF","category":"Debt","subCategory":"Banking & PSU"},{"row":34,"name":"Axis Short Duration Fund","amc":"Axis MF","category":"Debt","subCategory":"Short Duration"},{"row":35,"name":"Axis Corporate Bond Fund","amc":"Axis MF","category":"Debt","subCategory":"Corporate Bond"},{"row":36,"name":"Axis Treasury Advantage Fund","amc":"Axis MF","category":"Debt","subCategory":"Low Duration"},{"row":37,"name":"Axis Ultra Short Duration Fund","amc":"Axis MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":38,"name":"Axis Strategic Bond Fund","amc":"Axis MF","category":"Debt","subCategory":"Medium Duration"},{"row":39,"name":"Axis Dynamic Bond Fund","amc":"Axis MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":40,"name":"Axis Gilt Fund","amc":"Axis MF","category":"Debt","subCategory":"Gilt"},{"row":41,"name":"Axis Long Duration Fund","amc":"Axis MF","category":"Debt","subCategory":"Long Duration"},{"row":42,"name":"Axis Floater Fund","amc":"Axis MF","category":"Debt","subCategory":"Floater"},{"row":43,"name":"Axis Credit Risk Fund","amc":"Axis MF","category":"Debt","subCategory":"Credit Risk"},{"row":44,"name":"Axis CRISIL IBX SDL May 2027 Index Fund","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":45,"name":"Axis CRISIL-IBX AAA Bond NBFC Jun 2027","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":46,"name":"Axis Nifty AAA Bond SDL Apr 2026 50:50 ETF","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Debt ETF"},{"row":47,"name":"Axis CRISIL-IBX Fin Svc 3-6M Debt Index","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Constant Maturity"},{"row":48,"name":"Axis CRISIL-IBX AAA Bond NBFC-HFC Jun 2027","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":49,"name":"Axis Nifty SDL Sep 2026 Debt Index Fund","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":50,"name":"Axis CRISIL IBX 50:50 Gilt+SDL Jun 2028","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":51,"name":"Axis CRISIL IBX 50:50 Gilt+SDL Sep 2027","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":52,"name":"Axis CRISIL-IBX AAA Bond Fin Svc Sep 2027","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":53,"name":"Axis CRISIL IBX SDL June 2034 Debt Index","amc":"Axis MF","category":"Debt – Index/TM","subCategory":"Target Maturity"},{"row":54,"name":"Axis Nifty 50 ETF","amc":"Axis MF","category":"ETF","subCategory":"Broad Market ETF"},{"row":55,"name":"Axis Gold ETF","amc":"Axis MF","category":"ETF","subCategory":"Commodity ETF"},{"row":56,"name":"Axis Silver ETF","amc":"Axis MF","category":"ETF","subCategory":"Commodity ETF"},{"row":57,"name":"Axis Nifty Bank ETF","amc":"Axis MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":58,"name":"Axis Nifty IT ETF","amc":"Axis MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":59,"name":"Axis BSE Sensex ETF","amc":"Axis MF","category":"ETF","subCategory":"Broad Market ETF"},{"row":60,"name":"Axis Nifty Healthcare ETF","amc":"Axis MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":61,"name":"Axis Nifty India Consumption ETF","amc":"Axis MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":62,"name":"Axis Nifty500 Value 50 ETF","amc":"Axis MF","category":"ETF","subCategory":"Factor ETF"},{"row":63,"name":"Axis Nifty 100 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Broad Market"},{"row":64,"name":"Axis Nifty 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Broad Market"},{"row":65,"name":"Axis Nifty Midcap 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Mid Cap"},{"row":66,"name":"Axis Nifty Smallcap 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Small Cap"},{"row":67,"name":"Axis Nifty Next 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Large & Mid Cap"},{"row":68,"name":"Axis Nifty 500 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Broad Market"},{"row":69,"name":"Axis Nifty Bank Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Sectoral"},{"row":70,"name":"Axis Nifty IT Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Sectoral"},{"row":71,"name":"Axis Nifty500 Value 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Factor"},{"row":72,"name":"Axis Nifty500 Momentum 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Factor"},{"row":73,"name":"Axis Nifty500 Quality 50 Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Factor"},{"row":74,"name":"Axis BSE Sensex Index Fund","amc":"Axis MF","category":"Index Fund","subCategory":"Broad Market"},{"row":75,"name":"Axis Income Plus Arbitrage Active FOF","amc":"Axis MF","category":"FOF","subCategory":"Domestic – Debt+Arb"},{"row":76,"name":"Axis Multi-Asset Active FOF","amc":"Axis MF","category":"FOF","subCategory":"Domestic – Multi Asset"},{"row":77,"name":"Axis Gold Fund","amc":"Axis MF","category":"FOF","subCategory":"Commodity – Gold"},{"row":78,"name":"Axis Silver Fund of Fund","amc":"Axis MF","category":"FOF","subCategory":"Commodity – Silver"},{"row":79,"name":"Axis Greater China Equity FOF","amc":"Axis MF","category":"FOF","subCategory":"International – Equity"},{"row":80,"name":"Axis Global Equity Alpha FOF","amc":"Axis MF","category":"FOF","subCategory":"International – Equity"},{"row":81,"name":"Axis Gold and Silver Passive FOF","amc":"Axis MF","category":"FOF","subCategory":"Commodity – Gold+Silver"},{"row":82,"name":"Axis Global Innovation FOF","amc":"Axis MF","category":"FOF","subCategory":"International – Equity"},{"row":83,"name":"Axis US Specific Equity Passive FOF","amc":"Axis MF","category":"FOF","subCategory":"International – Equity"},{"row":84,"name":"Axis Income Plus Arbitrage Passive FOF","amc":"Axis MF","category":"FOF","subCategory":"Domestic – Debt+Arb"},{"row":85,"name":"Axis Nifty AAA Bond SDL Apr 2026 ETF FOF","amc":"Axis MF","category":"FOF","subCategory":"Domestic – Debt"},{"row":86,"name":"Axis Multi Factor Passive FOF","amc":"Axis MF","category":"FOF","subCategory":"Domestic – Equity"},{"row":87,"name":"Axis US Treasury Debt Passive FOF","amc":"Axis MF","category":"FOF","subCategory":"International – Debt"},{"row":88,"name":"SBI Large Cap Fund","amc":"SBI MF","category":"Equity","subCategory":"Large Cap"},{"row":89,"name":"SBI ESG Exclusionary Strategy Fund","amc":"SBI MF","category":"Equity","subCategory":"Thematic – ESG"},{"row":90,"name":"SBI Flexicap Fund","amc":"SBI MF","category":"Equity","subCategory":"Flexi Cap"},{"row":91,"name":"SBI Multicap Fund","amc":"SBI MF","category":"Equity","subCategory":"Multi Cap"},{"row":92,"name":"SBI Dividend Yield Fund","amc":"SBI MF","category":"Equity","subCategory":"Dividend Yield"},{"row":93,"name":"SBI Contra Fund","amc":"SBI MF","category":"Equity","subCategory":"Contra"},{"row":94,"name":"SBI Large & Midcap Fund","amc":"SBI MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":95,"name":"SBI Focused Fund","amc":"SBI MF","category":"Equity","subCategory":"Focused"},{"row":96,"name":"SBI Midcap Fund","amc":"SBI MF","category":"Equity","subCategory":"Mid Cap"},{"row":97,"name":"SBI MNC Fund","amc":"SBI MF","category":"Equity","subCategory":"Thematic – MNC"},{"row":98,"name":"SBI Small Cap Fund","amc":"SBI MF","category":"Equity","subCategory":"Small Cap"},{"row":99,"name":"SBI ELSS Tax Saver Fund","amc":"SBI MF","category":"Equity","subCategory":"ELSS"},{"row":100,"name":"SBI Healthcare Opportunities Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Healthcare"},{"row":101,"name":"SBI Banking & Financial Services Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Banking & Finance"},{"row":102,"name":"SBI PSU Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – PSU"},{"row":103,"name":"SBI Comma Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Commodities"},{"row":104,"name":"SBI Infrastructure Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Infrastructure"},{"row":105,"name":"SBI Consumption Opportunities Fund","amc":"SBI MF","category":"Equity","subCategory":"Thematic – Consumption"},{"row":106,"name":"SBI Technology Opportunities Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Technology"},{"row":107,"name":"SBI Equity Minimum Variance Fund","amc":"SBI MF","category":"Equity","subCategory":"Thematic – Min Variance"},{"row":108,"name":"SBI Energy Opportunities Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Energy"},{"row":109,"name":"SBI Automotive Opportunities Fund","amc":"SBI MF","category":"Equity","subCategory":"Sectoral – Auto"},{"row":110,"name":"SBI Innovative Opportunities Fund","amc":"SBI MF","category":"Equity","subCategory":"Thematic – Innovation"},{"row":111,"name":"SBI Quant Fund","amc":"SBI MF","category":"Equity","subCategory":"Quant"},{"row":112,"name":"SBI Nifty Index Fund","amc":"SBI MF","category":"Index Fund","subCategory":"Index – Nifty 50"},{"row":113,"name":"SBI Nifty Next 50 Index Fund","amc":"SBI MF","category":"Index Fund","subCategory":"Index – Nifty Next 50"},{"row":114,"name":"SBI Equity Hybrid Fund","amc":"SBI MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":115,"name":"SBI Conservative Hybrid Fund","amc":"SBI MF","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":116,"name":"SBI Multi Asset Allocation Fund","amc":"SBI MF","category":"Hybrid","subCategory":"Multi Asset"},{"row":117,"name":"SBI Children's Fund - Savings Plan","amc":"SBI MF","category":"Hybrid","subCategory":"Solution – Children"},{"row":118,"name":"SBI Equity Savings Fund","amc":"SBI MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":119,"name":"SBI Arbitrage Opportunities Fund","amc":"SBI MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":120,"name":"SBI Balanced Advantage Fund","amc":"SBI MF","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":121,"name":"SBI Children's Fund - Investment Plan","amc":"SBI MF","category":"Hybrid","subCategory":"Solution – Children"},{"row":122,"name":"SBI Retirement Benefit Fund – Aggressive","amc":"SBI MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":123,"name":"SBI Retirement Benefit Fund – Aggressive Hybrid","amc":"SBI MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":124,"name":"SBI Retirement Benefit Fund – Conservative Hybrid","amc":"SBI MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":125,"name":"SBI Retirement Benefit Fund – Conservative","amc":"SBI MF","category":"Hybrid","subCategory":"Solution – Retirement"},{"row":126,"name":"SBI Income Plus Arbitrage Active FOF","amc":"SBI MF","category":"FOF","subCategory":"Domestic Debt+Arb FOF"},{"row":127,"name":"SBI Dynamic Asset Allocation Active FoF","amc":"SBI MF","category":"FOF","subCategory":"Domestic Multi-Asset FOF"},{"row":128,"name":"SBI US Specific Equity Active FoF","amc":"SBI MF","category":"FOF","subCategory":"International – Equity"},{"row":129,"name":"SBI Gold Fund","amc":"SBI MF","category":"FOF","subCategory":"Commodity – Gold"},{"row":130,"name":"SBI Gilt Fund","amc":"SBI MF","category":"Debt","subCategory":"Gilt"},{"row":131,"name":"SBI Medium to Long Duration Fund","amc":"SBI MF","category":"Debt","subCategory":"Medium to Long Duration"},{"row":132,"name":"SBI Dynamic Bond Fund","amc":"SBI MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":133,"name":"SBI Corporate Bond Fund","amc":"SBI MF","category":"Debt","subCategory":"Corporate Bond"},{"row":134,"name":"SBI Credit Risk Fund","amc":"SBI MF","category":"Debt","subCategory":"Credit Risk"},{"row":135,"name":"SBI Medium Duration Fund","amc":"SBI MF","category":"Debt","subCategory":"Medium Duration"},{"row":136,"name":"SBI Short Term Debt Fund","amc":"SBI MF","category":"Debt","subCategory":"Short Duration"},{"row":137,"name":"SBI Constant Maturity 10-Year Gilt Fund","amc":"SBI MF","category":"Debt","subCategory":"Gilt – Constant Maturity"},{"row":138,"name":"SBI Low Duration Fund","amc":"SBI MF","category":"Debt","subCategory":"Low Duration"},{"row":139,"name":"SBI Savings Fund","amc":"SBI MF","category":"Debt","subCategory":"Money Market"},{"row":140,"name":"SBI Banking & PSU Fund","amc":"SBI MF","category":"Debt","subCategory":"Banking & PSU"},{"row":141,"name":"SBI Liquid Fund","amc":"SBI MF","category":"Debt","subCategory":"Liquid"},{"row":142,"name":"SBI Ultra Short Duration Fund","amc":"SBI MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":143,"name":"SBI Floating Rate Debt Fund","amc":"SBI MF","category":"Debt","subCategory":"Floater"},{"row":144,"name":"SBI Long Duration Fund","amc":"SBI MF","category":"Debt","subCategory":"Long Duration"},{"row":145,"name":"SBI Overnight Fund","amc":"SBI MF","category":"Debt","subCategory":"Overnight"},{"row":146,"name":"ICICI Prudential Large Cap Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Large Cap"},{"row":147,"name":"ICICI Prudential Large & Mid Cap Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Large & Mid Cap"},{"row":148,"name":"ICICI Prudential Multicap Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Multi Cap"},{"row":149,"name":"ICICI Prudential India Opportunities Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Special Situations"},{"row":150,"name":"ICICI Prudential Value Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Value"},{"row":151,"name":"ICICI Prudential ELSS Tax Saver Fund","amc":"ICICI Pru","category":"Equity","subCategory":"ELSS"},{"row":152,"name":"ICICI Prudential Focused Equity Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Focused"},{"row":153,"name":"ICICI Prudential Equity Minimum Variance Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Min Variance"},{"row":154,"name":"ICICI Prudential Quality Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Quality"},{"row":155,"name":"ICICI Prudential Midcap Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Mid Cap"},{"row":156,"name":"ICICI Prudential Smallcap Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Small Cap"},{"row":157,"name":"ICICI Prudential Dividend Yield Equity Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Dividend Yield"},{"row":158,"name":"ICICI Prudential Rural Opportunities Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Rural"},{"row":159,"name":"ICICI Prudential PSU Equity Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – PSU"},{"row":160,"name":"ICICI Prudential Banking & Financial Services Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Banking & Finance"},{"row":161,"name":"ICICI Prudential FMCG Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – FMCG"},{"row":162,"name":"ICICI Prudential Technology Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Technology"},{"row":163,"name":"ICICI Prudential Active Momentum Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Momentum"},{"row":164,"name":"ICICI Prudential Business Cycle Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Business Cycle"},{"row":165,"name":"ICICI Prudential Transportation and Logistics Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Transport & Logistics"},{"row":166,"name":"ICICI Prudential Housing Opportunities Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Housing"},{"row":167,"name":"ICICI Prudential ESG Exclusionary Strategy Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – ESG"},{"row":168,"name":"ICICI Prudential Pharma Healthcare & Diagnostics Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Healthcare"},{"row":169,"name":"ICICI Prudential Exports & Services Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Exports"},{"row":170,"name":"ICICI Prudential Infrastructure Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Infrastructure"},{"row":171,"name":"ICICI Prudential Manufacturing Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Manufacturing"},{"row":172,"name":"ICICI Prudential MNC Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – MNC"},{"row":173,"name":"ICICI Prudential Bharat Consumption Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Consumption"},{"row":174,"name":"ICICI Prudential Energy Opportunities Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Energy"},{"row":175,"name":"ICICI Prudential Commodities Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Sectoral – Commodities"},{"row":176,"name":"ICICI Prudential US Bluechip Equity Fund","amc":"ICICI Pru","category":"Equity","subCategory":"International – US Equity"},{"row":177,"name":"ICICI Prudential Quant Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Quant"},{"row":178,"name":"ICICI Prudential Innovation Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Innovation"},{"row":179,"name":"ICICI Prudential Conglomerate Fund","amc":"ICICI Pru","category":"Equity","subCategory":"Thematic – Conglomerate"},{"row":180,"name":"ICICI Prudential Equity & Debt Fund","amc":"ICICI Pru","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":181,"name":"ICICI Prudential Equity - Arbitrage Fund","amc":"ICICI Pru","category":"Hybrid","subCategory":"Arbitrage"},{"row":182,"name":"ICICI Prudential Balanced Advantage Fund","amc":"ICICI Pru","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":183,"name":"ICICI Prudential Regular Savings Fund","amc":"ICICI Pru","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":184,"name":"ICICI Prudential Multi-Asset Fund","amc":"ICICI Pru","category":"Hybrid","subCategory":"Multi Asset"},{"row":185,"name":"ICICI Prudential Passive Multi-Asset Fund of Fund","amc":"ICICI Pru","category":"FOF","subCategory":"Multi-Asset Passive FOF"},{"row":186,"name":"ICICI Prudential Thematic Advantage Fund (FOF)","amc":"ICICI Pru","category":"FOF","subCategory":"Thematic FOF"},{"row":187,"name":"ICICI Prudential Multi Sector Passive FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Multi-Sector Passive FOF"},{"row":188,"name":"ICICI Prudential Diversified Equity All Cap Omni FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Multi-Cap Omni FOF"},{"row":189,"name":"ICICI Prudential BHARAT 22 FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Index FOF"},{"row":190,"name":"ICICI Prudential Strategic Metal & Energy Equity FOF","amc":"ICICI Pru","category":"FOF","subCategory":"International – Commodity Equity"},{"row":191,"name":"ICICI Prudential Global Stable Equity Fund (FOF)","amc":"ICICI Pru","category":"FOF","subCategory":"International – Global Equity"},{"row":192,"name":"ICICI Prudential Income plus Arbitrage Omni FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Domestic Debt+Arb FOF"},{"row":193,"name":"ICICI Prudential Diversified Debt Strategy Active FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Domestic Debt FOF"},{"row":194,"name":"ICICI Prudential Gold ETF FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Commodity – Gold"},{"row":195,"name":"ICICI Prudential Silver ETF FOF","amc":"ICICI Pru","category":"FOF","subCategory":"Commodity – Silver"},{"row":196,"name":"ICICI Prudential Overnight Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Overnight"},{"row":197,"name":"ICICI Prudential Liquid Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Liquid"},{"row":198,"name":"ICICI Prudential Money Market Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Money Market"},{"row":199,"name":"ICICI Prudential Ultra Short Term Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Ultra Short Duration"},{"row":200,"name":"ICICI Prudential Savings Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Low Duration"},{"row":201,"name":"ICICI Prudential Floating Interest Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Floater"},{"row":202,"name":"ICICI Prudential Short Term Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Short Duration"},{"row":203,"name":"ICICI Prudential Bond Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Medium to Long Duration"},{"row":204,"name":"ICICI Prudential Corporate Bond Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Corporate Bond"},{"row":205,"name":"ICICI Prudential Banking & PSU Debt Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Banking & PSU"},{"row":206,"name":"ICICI Prudential Credit Risk Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Credit Risk"},{"row":207,"name":"ICICI Prudential Medium Duration Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Medium Duration"},{"row":208,"name":"ICICI Prudential Long Term Bond Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Long Duration"},{"row":209,"name":"ICICI Prudential All Seasons Bond Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Dynamic Bond"},{"row":210,"name":"ICICI Prudential Gilt Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Gilt"},{"row":211,"name":"ICICI Prudential Constant Maturity Gilt Fund","amc":"ICICI Pru","category":"Debt","subCategory":"Gilt – Constant Maturity"},{"row":212,"name":"ICICI Prudential Children's Fund","amc":"ICICI Pru","category":"Solutions","subCategory":"Solution – Children"},{"row":213,"name":"ICICI Prudential Retirement Fund – Pure Equity Plan","amc":"ICICI Pru","category":"Solutions","subCategory":"Solution – Retirement"},{"row":214,"name":"ICICI Prudential Retirement Fund – Hybrid Aggressive Plan","amc":"ICICI Pru","category":"Solutions","subCategory":"Solution – Retirement"},{"row":215,"name":"ICICI Prudential Retirement Fund – Hybrid Conservative Plan","amc":"ICICI Pru","category":"Solutions","subCategory":"Solution – Retirement"},{"row":216,"name":"ICICI Prudential Retirement Fund – Pure Debt Plan","amc":"ICICI Pru","category":"Solutions","subCategory":"Solution – Retirement"},{"row":217,"name":"ICICI Prudential Long Term Wealth Enhancement Fund","amc":"ICICI Pru","category":"Closed","subCategory":"Closed – ELSS"},{"row":218,"name":"HDFC Flexi Cap Fund","amc":"HDFC MF","category":"Equity","subCategory":"Flexi Cap"},{"row":219,"name":"HDFC Mid Cap Fund","amc":"HDFC MF","category":"Equity","subCategory":"Mid Cap"},{"row":220,"name":"HDFC Small Cap Fund","amc":"HDFC MF","category":"Equity","subCategory":"Small Cap"},{"row":221,"name":"HDFC Multi Cap Fund","amc":"HDFC MF","category":"Equity","subCategory":"Multi Cap"},{"row":222,"name":"HDFC Large and Mid Cap Fund","amc":"HDFC MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":223,"name":"HDFC Focused Fund","amc":"HDFC MF","category":"Equity","subCategory":"Focused"},{"row":224,"name":"HDFC Value Fund","amc":"HDFC MF","category":"Equity","subCategory":"Value"},{"row":225,"name":"HDFC Dividend Yield Fund","amc":"HDFC MF","category":"Equity","subCategory":"Dividend Yield"},{"row":226,"name":"HDFC Business Cycle Fund","amc":"HDFC MF","category":"Equity","subCategory":"Thematic – Business Cycle"},{"row":227,"name":"HDFC Transportation and Logistics Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Transport & Logistics"},{"row":228,"name":"HDFC Defence Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Defence"},{"row":229,"name":"HDFC Banking & Financial Services Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Banking & Finance"},{"row":230,"name":"HDFC Technology Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Technology"},{"row":231,"name":"HDFC Pharma and Healthcare Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Healthcare"},{"row":232,"name":"HDFC Housing Opportunities Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Housing"},{"row":233,"name":"HDFC Infrastructure Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Infrastructure"},{"row":234,"name":"HDFC MNC Fund","amc":"HDFC MF","category":"Equity","subCategory":"Thematic – MNC"},{"row":235,"name":"HDFC Non-Cyclical Consumer Fund","amc":"HDFC MF","category":"Equity","subCategory":"Thematic – Non-Cyclical Consumer"},{"row":236,"name":"HDFC Manufacturing Fund","amc":"HDFC MF","category":"Equity","subCategory":"Sectoral – Manufacturing"},{"row":237,"name":"HDFC Innovation Fund","amc":"HDFC MF","category":"Equity","subCategory":"Thematic – Innovation"},{"row":238,"name":"HDFC ELSS Tax Saver","amc":"HDFC MF","category":"Equity","subCategory":"ELSS"},{"row":239,"name":"HDFC Balanced Advantage Fund","amc":"HDFC MF","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":240,"name":"HDFC Hybrid Equity Fund","amc":"HDFC MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":241,"name":"HDFC Multi-Asset Allocation Fund","amc":"HDFC MF","category":"Hybrid","subCategory":"Multi Asset"},{"row":242,"name":"HDFC Equity Savings Fund","amc":"HDFC MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":243,"name":"HDFC Hybrid Debt Fund","amc":"HDFC MF","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":244,"name":"HDFC Multi-Asset Active FOF","amc":"HDFC MF","category":"FOF","subCategory":"Multi-Asset Active FOF"},{"row":245,"name":"HDFC Diversified Equity All Cap Active FOF","amc":"HDFC MF","category":"FOF","subCategory":"Multi-Cap Active FOF"},{"row":246,"name":"HDFC Gold ETF Fund of Fund","amc":"HDFC MF","category":"FOF","subCategory":"Commodity – Gold"},{"row":247,"name":"HDFC Silver ETF Fund of Fund","amc":"HDFC MF","category":"FOF","subCategory":"Commodity – Silver"},{"row":248,"name":"HDFC Income Plus Arbitrage Active FOF","amc":"HDFC MF","category":"FOF","subCategory":"Domestic Debt+Arb FOF"},{"row":249,"name":"HDFC Children's Fund","amc":"HDFC MF","category":"Solutions","subCategory":"Solution – Children"},{"row":250,"name":"HDFC Retirement Savings Fund - Equity Plan","amc":"HDFC MF","category":"Solutions","subCategory":"Solution – Retirement"},{"row":251,"name":"HDFC Retirement Savings Fund - Hybrid Equity Plan","amc":"HDFC MF","category":"Solutions","subCategory":"Solution – Retirement"},{"row":252,"name":"HDFC Retirement Savings Fund - Hybrid Debt Plan","amc":"HDFC MF","category":"Solutions","subCategory":"Solution – Retirement"},{"row":253,"name":"HDFC Overnight Fund","amc":"HDFC MF","category":"Debt","subCategory":"Overnight"},{"row":254,"name":"HDFC Liquid Fund","amc":"HDFC MF","category":"Debt","subCategory":"Liquid"},{"row":255,"name":"HDFC Ultra Short Term Fund","amc":"HDFC MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":256,"name":"HDFC Low Duration Fund","amc":"HDFC MF","category":"Debt","subCategory":"Low Duration"},{"row":257,"name":"HDFC Money Market Fund","amc":"HDFC MF","category":"Debt","subCategory":"Money Market"},{"row":258,"name":"HDFC Short Term Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Short Duration"},{"row":259,"name":"HDFC Medium Term Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Medium Duration"},{"row":260,"name":"HDFC Income Fund","amc":"HDFC MF","category":"Debt","subCategory":"Medium to Long Duration"},{"row":261,"name":"HDFC Long Duration Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Long Duration"},{"row":262,"name":"HDFC Arbitrage Fund","amc":"HDFC MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":263,"name":"HDFC Floating Rate Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Floater"},{"row":264,"name":"HDFC Corporate Bond Fund","amc":"HDFC MF","category":"Debt","subCategory":"Corporate Bond"},{"row":265,"name":"HDFC Banking and PSU Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Banking & PSU"},{"row":266,"name":"HDFC Credit Risk Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Credit Risk"},{"row":267,"name":"HDFC Dynamic Debt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":268,"name":"HDFC Gilt Fund","amc":"HDFC MF","category":"Debt","subCategory":"Gilt"},{"row":269,"name":"Nippon India Quant Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – Quant"},{"row":270,"name":"Nippon India Growth Mid Cap Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Mid Cap"},{"row":271,"name":"Nippon India Focused Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Focused"},{"row":272,"name":"Nippon India Small Cap Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Small Cap"},{"row":273,"name":"Nippon India Value Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Value"},{"row":274,"name":"Nippon India Multi Cap Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Multi Cap"},{"row":275,"name":"Nippon India Flexi Cap Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Flexi Cap"},{"row":276,"name":"Nippon India ELSS Tax Saver Fund","amc":"Nippon India MF","category":"Equity","subCategory":"ELSS"},{"row":277,"name":"Nippon India Banking & Financial Services Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Sectoral – Banking & Finance"},{"row":278,"name":"Nippon India Power & Infra Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Sectoral – Power & Infra"},{"row":279,"name":"Nippon India Pharma Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Sectoral – Pharma"},{"row":280,"name":"Nippon India Consumption Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – Consumption"},{"row":281,"name":"Nippon India Japan Equity Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – International (Japan)"},{"row":282,"name":"Nippon India US Equity Opportunities Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – International (US)"},{"row":283,"name":"Nippon India Taiwan Equity Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – International (Taiwan)"},{"row":284,"name":"Nippon India Innovation Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – Innovation"},{"row":285,"name":"Nippon India Active Momentum Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – Momentum"},{"row":286,"name":"Nippon India MNC Fund","amc":"Nippon India MF","category":"Equity","subCategory":"Thematic – MNC"},{"row":287,"name":"Nippon India Aggressive Hybrid Fund","amc":"Nippon India MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":288,"name":"Nippon India Equity Savings Fund","amc":"Nippon India MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":289,"name":"Nippon India Balanced Advantage Fund","amc":"Nippon India MF","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":290,"name":"Nippon India Conservative Hybrid Fund","amc":"Nippon India MF","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":291,"name":"Nippon India Multi Asset Allocation Fund","amc":"Nippon India MF","category":"Hybrid","subCategory":"Multi Asset"},{"row":292,"name":"Nippon India Arbitrage Fund","amc":"Nippon India MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":293,"name":"Nippon India Overnight Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Overnight"},{"row":294,"name":"Nippon India Liquid Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Liquid"},{"row":295,"name":"Nippon India Money Market Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Money Market"},{"row":296,"name":"Nippon India Ultra Short Duration Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":297,"name":"Nippon India Low Duration Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Low Duration"},{"row":298,"name":"Nippon India Corporate Bond Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Corporate Bond"},{"row":299,"name":"Nippon India Banking and PSU Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Banking & PSU"},{"row":300,"name":"Nippon India Floater Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Floater"},{"row":301,"name":"Nippon India Short Term Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Short Duration"},{"row":302,"name":"Nippon India Credit Risk Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Credit Risk"},{"row":303,"name":"Nippon India Medium Duration Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Medium Duration"},{"row":304,"name":"Nippon India Medium to Long Duration Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Medium to Long Duration"},{"row":305,"name":"Nippon India Dynamic Bond Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":306,"name":"Nippon India Gilt Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Gilt"},{"row":307,"name":"Nippon India Nivesh Lakshya Long Duration Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Long Duration"},{"row":308,"name":"Nippon India Index Fund - Nifty 50 Plan","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Nifty 50"},{"row":309,"name":"Nippon India Index Fund - BSE Sensex Plan","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Sensex"},{"row":310,"name":"Nippon India Nifty Smallcap 250 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Smallcap 250"},{"row":311,"name":"Nippon India Nifty Midcap 150 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Midcap 150"},{"row":312,"name":"Nippon India Nifty 50 Value 20 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Nifty 50 Value 20"},{"row":313,"name":"Nippon India Nifty Alpha Low Volatility 30 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Factor"},{"row":314,"name":"Nippon India Nifty Bank Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Bank"},{"row":315,"name":"Nippon India Nifty IT Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – IT"},{"row":316,"name":"Nippon India Nifty 500 Equal Weight Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Nifty 500 EW"},{"row":317,"name":"Nippon India Nifty 500 Momentum 50 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Momentum"},{"row":318,"name":"Nippon India Nifty Auto Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Auto"},{"row":319,"name":"Nippon India Nifty 500 Low Volatility 50 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Low Volatility"},{"row":320,"name":"Nippon India Nifty 500 Quality 50 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Quality"},{"row":321,"name":"Nippon India BSE Sensex Next 30 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Sensex Next 30"},{"row":322,"name":"Nippon India Nifty India Manufacturing Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Index – Manufacturing"},{"row":323,"name":"Nippon India Nifty AAA CPSE Bond Plus SDL - Apr 2027 Maturity 60:40 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":324,"name":"Nippon India Nifty AAA PSU Bond Plus SDL - Sep 2026 Maturity 50:50 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":325,"name":"Nippon India Nifty SDL Plus G-Sec - Jun 2028 Maturity 70:30 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":326,"name":"Nippon India Nifty G-Sec Sep 2027 Maturity Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":327,"name":"Nippon India Nifty G-Sec Jun 2036 Maturity Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":328,"name":"Nippon India Nifty SDL Plus G-Sec - Jun 2029 Maturity 70:30 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":329,"name":"Nippon India Nifty G-Sec Oct 2028 Maturity Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":330,"name":"Nippon India CRISIL-IBX AAA Financial Services - Dec 2026 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":331,"name":"Nippon India CRISIL-IBX AAA Financial Services - Jan 2028 Index Fund","amc":"Nippon India MF","category":"Index Fund","subCategory":"Debt Index – Target Maturity"},{"row":332,"name":"Nippon India ETF Nifty 50 BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Nifty 50"},{"row":333,"name":"Nippon India ETF BSE Sensex","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Sensex"},{"row":334,"name":"Nippon India ETF Nifty 50 Value 20","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Nifty 50 Value 20"},{"row":335,"name":"Nippon India ETF Nifty Next 50 Junior BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Nifty Next 50"},{"row":336,"name":"Nippon India ETF Nifty 100","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Nifty 100"},{"row":337,"name":"Nippon India ETF Nifty India Consumption","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Consumption"},{"row":338,"name":"Nippon India ETF Nifty Dividend Opportunities 50","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Dividend Yield"},{"row":339,"name":"Nippon India ETF Nifty Infrastructure BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Infrastructure"},{"row":340,"name":"Nippon India ETF Nifty Bank BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Bank"},{"row":341,"name":"Nippon India ETF Nifty PSU Bank BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – PSU Bank"},{"row":342,"name":"Nippon India ETF Nifty 50 Shariah BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Shariah"},{"row":343,"name":"Nippon India ETF Nifty Midcap 150","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Midcap 150"},{"row":344,"name":"Nippon India ETF Hang Seng BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – International (HK)"},{"row":345,"name":"Nippon India ETF Nifty IT","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – IT"},{"row":346,"name":"Nippon India Nifty Pharma ETF","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Pharma"},{"row":347,"name":"Nippon India Nifty Auto ETF","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Auto"},{"row":348,"name":"CPSE ETF","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – CPSE"},{"row":349,"name":"Nippon India BSE Sensex Next 30 ETF","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Sensex Next 30"},{"row":350,"name":"Nippon India Nifty India Manufacturing ETF","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Manufacturing"},{"row":351,"name":"Nippon India ETF Nifty 1D Rate Liquid BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Liquid/Debt"},{"row":352,"name":"Nippon India Nifty 1D Rate Liquid ETF - Growth","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Liquid/Debt"},{"row":353,"name":"Nippon India ETF Nifty 8-13 yr G-Sec Long Term Gilt","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Gilt"},{"row":354,"name":"Nippon India ETF Nifty SDL Apr 2026 Top 20 Equal Weight","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – SDL Target Maturity"},{"row":355,"name":"Nippon India ETF Nifty 5 yr Benchmark G-Sec","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – G-Sec"},{"row":356,"name":"Nippon India Silver ETF","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Silver"},{"row":357,"name":"Nippon India ETF Gold BeES","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Gold"},{"row":358,"name":"Nippon India Gold Savings Fund","amc":"Nippon India MF","category":"FOF","subCategory":"Commodity – Gold FoF"},{"row":359,"name":"Nippon India Nifty Next 50 Junior BeES FoF","amc":"Nippon India MF","category":"FOF","subCategory":"Equity FoF"},{"row":360,"name":"Nippon India Diversified Equity Flexicap Passive FoF","amc":"Nippon India MF","category":"FOF","subCategory":"Equity FoF"},{"row":361,"name":"Nippon India Multi - Asset Omni FoF","amc":"Nippon India MF","category":"FOF","subCategory":"Multi-Asset FoF"},{"row":362,"name":"Nippon India Income Plus Arbitrage Active Fund of Fund","amc":"Nippon India MF","category":"FOF","subCategory":"Hybrid FoF"},{"row":363,"name":"Nippon India Silver ETF Fund of Fund (FOF)","amc":"Nippon India MF","category":"FOF","subCategory":"Commodity – Silver FoF"},{"row":364,"name":"Nippon India Retirement Fund - Income Generation Scheme","amc":"Nippon India MF","category":"Solutions","subCategory":"Solution – Retirement"},{"row":365,"name":"Nippon India Retirement Fund - Wealth Creation Scheme","amc":"Nippon India MF","category":"Solutions","subCategory":"Solution – Retirement"},{"row":366,"name":"Nippon India Short Duration Fund","amc":"Nippon India MF","category":"Debt","subCategory":"Short Duration"},{"row":367,"name":"Nippon India ETF BSE Sensex Next 50","amc":"Nippon India MF","category":"ETF","subCategory":"ETF – Equity"},{"row":368,"name":"Nippon India Multi-Asset Omni FoF","amc":"Nippon India MF","category":"FOF","subCategory":"FOF – Multi Asset"},{"row":369,"name":"Nippon India Silver ETF Fund of Fund","amc":"Nippon India MF","category":"FOF","subCategory":"FOF – Commodity (Silver)"},{"row":370,"name":"Aditya Birla Sun Life Large Cap Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Large Cap"},{"row":371,"name":"Aditya Birla Sun Life Focused Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Focused Fund"},{"row":372,"name":"Aditya Birla Sun Life Flexi Cap Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Flexi Cap"},{"row":373,"name":"Aditya Birla Sun Life Large & Mid Cap Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":374,"name":"Aditya Birla Sun Life MNC Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – MNC"},{"row":375,"name":"Aditya Birla Sun Life Midcap Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Mid Cap"},{"row":376,"name":"Aditya Birla Sun Life Multi-Cap Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Multi Cap"},{"row":377,"name":"Aditya Birla Sun Life Small Cap Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Small Cap"},{"row":378,"name":"Aditya Birla Sun Life Value Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Value Fund"},{"row":379,"name":"Aditya Birla Sun Life Manufacturing Equity Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Manufacturing"},{"row":380,"name":"Aditya Birla Sun Life Banking and Financial Services Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Sectoral – Banking"},{"row":381,"name":"Aditya Birla Sun Life Dividend Yield Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Dividend Yield"},{"row":382,"name":"Aditya Birla Sun Life Infrastructure Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Infrastructure"},{"row":383,"name":"Aditya Birla Sun Life Digital India Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Sectoral – Technology"},{"row":384,"name":"Aditya Birla Sun Life Consumption Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Consumption"},{"row":385,"name":"Aditya Birla Sun Life International Equity Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – International"},{"row":386,"name":"Aditya Birla Sun Life Pharma & Healthcare Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Sectoral – Pharma"},{"row":387,"name":"Aditya Birla Sun Life Bal Bhavishya Yojna","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Children's"},{"row":388,"name":"Aditya Birla Sun Life Retirement Fund - The 30s Plan","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Retirement Fund"},{"row":389,"name":"Aditya Birla Sun Life Retirement Fund - The 40s Plan","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Retirement Fund"},{"row":390,"name":"Aditya Birla Sun Life Retirement Fund - The 50s Plan","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Retirement Fund"},{"row":391,"name":"Aditya Birla Sun Life Retirement Fund - The 50s Plus Debt Plan","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Retirement Fund"},{"row":392,"name":"Aditya Birla Sun Life PSU Equity Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – PSU"},{"row":393,"name":"Aditya Birla Sun Life Special Opportunities Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Special Situations"},{"row":394,"name":"Aditya Birla Sun Life ESG Integration Strategy Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – ESG"},{"row":395,"name":"Aditya Birla Sun Life Business Cycle Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Business Cycle"},{"row":396,"name":"Aditya Birla Sun Life Transportation and Logistics Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Sectoral – Transportation"},{"row":397,"name":"Aditya Birla Sun Life Quant Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Quant"},{"row":398,"name":"Aditya Birla Sun Life Conglomerate Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"Thematic – Conglomerates"},{"row":399,"name":"Aditya Birla Sun Life ELSS Tax Saver Fund","amc":"Aditya Birla Sun Life MF","category":"Equity","subCategory":"ELSS"},{"row":400,"name":"Aditya Birla Sun Life Equity Hybrid '95 Fund","amc":"Aditya Birla Sun Life MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":401,"name":"Aditya Birla Sun Life Equity Savings Fund","amc":"Aditya Birla Sun Life MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":402,"name":"Aditya Birla Sun Life Regular Savings Fund","amc":"Aditya Birla Sun Life MF","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":403,"name":"Aditya Birla Sun Life Multi Asset Allocation Fund","amc":"Aditya Birla Sun Life MF","category":"Hybrid","subCategory":"Multi Asset Allocation"},{"row":404,"name":"Aditya Birla Sun Life Balanced Advantage Fund","amc":"Aditya Birla Sun Life MF","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":405,"name":"Aditya Birla Sun Life Arbitrage Fund","amc":"Aditya Birla Sun Life MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":406,"name":"Aditya Birla Sun Life Overnight Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Overnight"},{"row":407,"name":"Aditya Birla Sun Life Liquid Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Liquid"},{"row":408,"name":"Aditya Birla Sun Life Money Manager Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Money Market"},{"row":409,"name":"Aditya Birla Sun Life Low Duration Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Low Duration"},{"row":410,"name":"Aditya Birla Sun Life Savings Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":411,"name":"Aditya Birla Sun Life Floating Rate Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Floater"},{"row":412,"name":"Aditya Birla Sun Life Corporate Bond Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Corporate Bond"},{"row":413,"name":"Aditya Birla Sun Life Short Term Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Short Duration"},{"row":414,"name":"Aditya Birla Sun Life Banking & PSU Debt Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Banking & PSU"},{"row":415,"name":"Aditya Birla Sun Life Medium Term Plan","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Medium Duration"},{"row":416,"name":"Aditya Birla Sun Life Credit Risk Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Credit Risk"},{"row":417,"name":"Aditya Birla Sun Life Dynamic Bond Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Dynamic Bond Fund"},{"row":418,"name":"Aditya Birla Sun Life Income Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Medium to Long Duration"},{"row":419,"name":"Aditya Birla Sun Life Government Securities Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Gilt"},{"row":420,"name":"Aditya Birla Sun Life Long Duration Fund","amc":"Aditya Birla Sun Life MF","category":"Debt","subCategory":"Long Duration"},{"row":421,"name":"Aditya Birla Sun Life NIFTY SDL Plus PSU Bond Sep 2026 60:40 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":422,"name":"Aditya Birla Sun Life Nifty SDL Apr 2027 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":423,"name":"Aditya Birla Sun Life CRISIL IBX 60:40 SDL + AAA PSU Apr 2027 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":424,"name":"Aditya Birla Sun Life CRISIL IBX Gilt - April 2026 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":425,"name":"Aditya Birla Sun Life CRISIL IBX 50:50 Gilt Plus SDL Apr 2028 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":426,"name":"Aditya Birla Sun Life CRISIL IBX Gilt Apr 2029 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":427,"name":"Aditya Birla Sun Life Nifty SDL Sep 2027 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":428,"name":"Aditya Birla Sun Life CRISIL IBX Gilt Apr 2028 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":429,"name":"Aditya Birla Sun Life CRISIL IBX SDL Jun 2032 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":430,"name":"Aditya Birla Sun Life CRISIL IBX Gilt April 2033 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":431,"name":"Aditya Birla Sun Life CRISIL IBX Gilt June 2027 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":432,"name":"Aditya Birla Sun Life CRISIL-IBX AAA NBFC-HFC Index Sep 2026 Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":433,"name":"Aditya Birla Sun Life CRISIL-IBX AAA Financial Services Index Sep 2027 Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":434,"name":"Aditya Birla Sun Life CRISIL-IBX Financial Services 3-6 Months Debt Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":435,"name":"Aditya Birla Sun Life CRISIL-IBX Financial Services 9-12 Months Debt Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Debt Index"},{"row":436,"name":"Aditya Birla Sun Life Nifty 50 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index – Nifty 50"},{"row":437,"name":"Aditya Birla Sun Life Nifty 50 Equal Weight Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index"},{"row":438,"name":"Aditya Birla Sun Life Nifty Next 50 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index"},{"row":439,"name":"Aditya Birla Sun Life Nifty Midcap 150 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index – Midcap"},{"row":440,"name":"Aditya Birla Sun Life Nifty Smallcap 50 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index – Smallcap"},{"row":441,"name":"Aditya Birla Sun Life Nifty India Defence Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":442,"name":"Aditya Birla Sun Life BSE India Infrastructure Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":443,"name":"Aditya Birla Sun Life BSE 500 Momentum 50 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index"},{"row":444,"name":"Aditya Birla Sun Life BSE 500 Quality 50 Index Fund","amc":"Aditya Birla Sun Life MF","category":"Index Fund","subCategory":"Equity Index"},{"row":445,"name":"Aditya Birla Sun Life Nifty 50 ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF – Nifty 50"},{"row":446,"name":"Aditya Birla Sun Life BSE Sensex ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF – Sensex"},{"row":447,"name":"Aditya Birla Sun Life Nifty Next 50 ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF"},{"row":448,"name":"Aditya Birla Sun Life Nifty Bank ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF – Sectoral"},{"row":449,"name":"Aditya Birla Sun Life Nifty Healthcare ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF – Sectoral"},{"row":450,"name":"Aditya Birla Sun Life Nifty IT ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF – Sectoral"},{"row":451,"name":"Aditya Birla Sun Life Nifty PSE ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF – Sectoral"},{"row":452,"name":"Aditya Birla Sun Life Gold ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Commodity ETF – Gold"},{"row":453,"name":"Aditya Birla Sun Life Silver ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Commodity ETF – Silver"},{"row":454,"name":"Aditya Birla Sun Life Nifty 200 Momentum 30 ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF"},{"row":455,"name":"Aditya Birla Sun Life Nifty 200 Quality 30 ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Equity ETF"},{"row":456,"name":"Aditya Birla Sun Life CRISIL Liquid Overnight ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Debt ETF"},{"row":457,"name":"Aditya Birla Sun Life CRISIL Broad Based Gilt ETF","amc":"Aditya Birla Sun Life MF","category":"ETF","subCategory":"Debt ETF – Gilt"},{"row":458,"name":"Aditya Birla Sun Life Multi-Asset Omni FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Passive FOF – Multi Asset"},{"row":459,"name":"Aditya Birla Sun Life Dynamic Asset Allocation Omni FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Passive FOF – Dynamic"},{"row":460,"name":"Aditya Birla Sun Life Aggressive Hybrid Omni FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Passive FOF – Aggressive Hybrid"},{"row":461,"name":"Aditya Birla Sun Life Conservative Hybrid Active FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Active FOF – Conservative Hybrid"},{"row":462,"name":"Aditya Birla Sun Life Income Plus Arbitrage Active FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Active FOF – Arbitrage"},{"row":463,"name":"Aditya Birla Sun Life US Equity Passive FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Passive FOF – International"},{"row":464,"name":"Aditya Birla Sun Life Global Excellence Equity Fund of Fund","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"FOF – International"},{"row":465,"name":"Aditya Birla Sun Life Global Emerging Opportunities Fund","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"FOF – International"},{"row":466,"name":"Aditya Birla Sun Life Gold Fund","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"FOF – Gold"},{"row":467,"name":"Aditya Birla Sun Life Silver ETF Fund of Fund","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"FOF – Silver"},{"row":468,"name":"Aditya Birla Sun Life Multi Asset Passive FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"Passive FOF – Multi Asset"},{"row":469,"name":"Aditya Birla Sun Life US Treasury 1-3 Year Bonds ETFs Passive FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"FOF – International Debt"},{"row":470,"name":"Aditya Birla Sun Life US Treasury 3-10 Year Bonds ETFs Passive FOF","amc":"Aditya Birla Sun Life MF","category":"FOF","subCategory":"FOF – International Debt"},{"row":471,"name":"Tata Large Cap Fund","amc":"Tata MF","category":"Equity","subCategory":"Large Cap"},{"row":472,"name":"Tata Flexi Cap Fund","amc":"Tata MF","category":"Equity","subCategory":"Flexi Cap"},{"row":473,"name":"Tata Large & Mid Cap Fund","amc":"Tata MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":474,"name":"Tata Value Fund","amc":"Tata MF","category":"Equity","subCategory":"Value Fund"},{"row":475,"name":"Tata Mid Cap Fund","amc":"Tata MF","category":"Equity","subCategory":"Mid Cap"},{"row":476,"name":"Tata ELSS Fund","amc":"Tata MF","category":"Equity","subCategory":"ELSS"},{"row":477,"name":"Tata Small Cap Fund","amc":"Tata MF","category":"Equity","subCategory":"Small Cap"},{"row":478,"name":"Tata Focused Fund","amc":"Tata MF","category":"Equity","subCategory":"Focused Fund"},{"row":479,"name":"Tata Dividend Yield Fund","amc":"Tata MF","category":"Equity","subCategory":"Dividend Yield"},{"row":480,"name":"Tata Multicap Fund","amc":"Tata MF","category":"Equity","subCategory":"Multi Cap"},{"row":481,"name":"Tata Business Cycle Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Business Cycle"},{"row":482,"name":"Tata Ethical Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Ethical/Shariah"},{"row":483,"name":"Tata Banking & Financial Services Fund","amc":"Tata MF","category":"Equity","subCategory":"Sectoral – Banking"},{"row":484,"name":"Tata Digital India Fund","amc":"Tata MF","category":"Equity","subCategory":"Sectoral – Technology"},{"row":485,"name":"Tata India Consumer Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Consumption"},{"row":486,"name":"Tata India Pharma & Healthcare Fund","amc":"Tata MF","category":"Equity","subCategory":"Sectoral – Pharma"},{"row":487,"name":"Tata Resources & Energy Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Resources & Energy"},{"row":488,"name":"Tata Infrastructure Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Infrastructure"},{"row":489,"name":"Tata Housing Opportunities Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Real Estate"},{"row":490,"name":"Tata India Innovation Fund","amc":"Tata MF","category":"Equity","subCategory":"Thematic – Innovation"},{"row":491,"name":"Tata Nifty 50 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Nifty 50"},{"row":492,"name":"Tata Nifty Auto Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":493,"name":"Tata Nifty India Tourism Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":494,"name":"Tata Nifty Financial Services Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":495,"name":"Tata Nifty MidSmall Healthcare Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":496,"name":"Tata Nifty Realty Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":497,"name":"Tata Nifty200 Alpha 30 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index"},{"row":498,"name":"Tata BSE Sensex Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sensex"},{"row":499,"name":"Tata BSE Select Business Groups Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":500,"name":"Tata BSE Quality Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index"},{"row":501,"name":"Tata BSE Multicap Consumption 50:30:20 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Multicap"},{"row":502,"name":"Tata Nifty Capital Markets Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Sectoral"},{"row":503,"name":"Tata Nifty Midcap 150 Momentum 50 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Midcap"},{"row":504,"name":"Tata Nifty Midcap 150 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Midcap"},{"row":505,"name":"Tata Nifty Next 50 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index"},{"row":506,"name":"Tata Nifty SDL Plus AAA PSU Bond Dec 2027 60:40 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Debt Index"},{"row":507,"name":"Tata CRISIL-IBX Gilt Index April 2026 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Debt Index"},{"row":508,"name":"Tata Nifty G-Sec Dec 2026 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Debt Index"},{"row":509,"name":"Tata Nifty G-Sec Dec 2029 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Debt Index"},{"row":510,"name":"Tata Nifty500 Multicap India Manufacturing 50:30:20 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Multicap"},{"row":511,"name":"Tata Nifty500 Multicap Infrastructure 50:30:20 Index Fund","amc":"Tata MF","category":"Index Fund","subCategory":"Equity Index – Multicap"},{"row":512,"name":"Tata Nifty 50 Exchange Traded Fund","amc":"Tata MF","category":"ETF","subCategory":"Equity ETF – Nifty 50"},{"row":513,"name":"Tata Nifty Private Bank Exchange Traded Fund","amc":"Tata MF","category":"ETF","subCategory":"Equity ETF – Sectoral"},{"row":514,"name":"Tata Nifty India Digital Exchange Traded Fund","amc":"Tata MF","category":"ETF","subCategory":"Equity ETF – Sectoral"},{"row":515,"name":"Tata Silver Exchange Traded Fund","amc":"Tata MF","category":"ETF","subCategory":"Commodity ETF – Silver"},{"row":516,"name":"Tata Gold Exchange Traded Fund","amc":"Tata MF","category":"ETF","subCategory":"Commodity ETF – Gold"},{"row":517,"name":"Tata Aggressive Hybrid Fund","amc":"Tata MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":518,"name":"Tata Balanced Advantage Fund","amc":"Tata MF","category":"Hybrid","subCategory":"Balanced Advantage"},{"row":519,"name":"Tata Arbitrage Fund","amc":"Tata MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":520,"name":"Tata Multi Asset Allocation Fund","amc":"Tata MF","category":"Hybrid","subCategory":"Multi Asset Allocation"},{"row":521,"name":"Tata Short Term Bond Fund","amc":"Tata MF","category":"Debt","subCategory":"Short Duration"},{"row":522,"name":"Tata Treasury Advantage Fund","amc":"Tata MF","category":"Debt","subCategory":"Low Duration"},{"row":523,"name":"Tata Money Market Fund","amc":"Tata MF","category":"Debt","subCategory":"Money Market"},{"row":524,"name":"Tata Ultra Short Term Fund","amc":"Tata MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":525,"name":"Tata Corporate Bond Fund","amc":"Tata MF","category":"Debt","subCategory":"Corporate Bond"},{"row":526,"name":"Tata Floating Rate Fund","amc":"Tata MF","category":"Debt","subCategory":"Floater"},{"row":527,"name":"Tata Liquid Fund","amc":"Tata MF","category":"Debt","subCategory":"Liquid"},{"row":528,"name":"Tata Overnight Fund","amc":"Tata MF","category":"Debt","subCategory":"Overnight"},{"row":529,"name":"Tata Gilt Securities Fund","amc":"Tata MF","category":"Debt","subCategory":"Gilt"},{"row":530,"name":"Tata Income Plus Arbitrage Active FOF","amc":"Tata MF","category":"FOF","subCategory":"Active FOF – Arbitrage"},{"row":531,"name":"Tata Nifty India Digital ETF Fund of Fund","amc":"Tata MF","category":"FOF","subCategory":"FOF – Digital"},{"row":532,"name":"Tata Silver ETF Fund of Fund","amc":"Tata MF","category":"FOF","subCategory":"FOF – Silver"},{"row":533,"name":"Tata Gold ETF Fund of Fund","amc":"Tata MF","category":"FOF","subCategory":"FOF – Gold"},{"row":534,"name":"Tata Retirement Savings Fund - Progressive","amc":"Tata MF","category":"Solutions","subCategory":"Retirement Fund – Aggressive"},{"row":535,"name":"Tata Retirement Savings Fund - Moderate","amc":"Tata MF","category":"Solutions","subCategory":"Retirement Fund – Moderate"},{"row":536,"name":"Tata Retirement Savings Fund - Conservative","amc":"Tata MF","category":"Solutions","subCategory":"Retirement Fund – Conservative"},{"row":537,"name":"Tata Children's Fund","amc":"Tata MF","category":"Solutions","subCategory":"Children's Fund"},{"row":538,"name":"DSP Banking & Financial Services Fund","amc":"DSP MF","category":"Equity","subCategory":"Sectoral – BFSI"},{"row":539,"name":"DSP Business Cycle Fund","amc":"DSP MF","category":"Equity","subCategory":"Thematic – Business Cycle"},{"row":540,"name":"DSP ELSS Tax Saver Fund (erstwhile known as DSP Tax Saver Fund)$$","amc":"DSP MF","category":"Equity","subCategory":"ELSS"},{"row":541,"name":"DSP Flexi Cap Fund","amc":"DSP MF","category":"Equity","subCategory":"Flexi Cap"},{"row":542,"name":"DSP Focused Fund (Erstwhile known as DSP Focus Fund)","amc":"DSP MF","category":"Equity","subCategory":"Focused"},{"row":543,"name":"DSP Healthcare Fund","amc":"DSP MF","category":"Equity","subCategory":"Sectoral – Healthcare"},{"row":544,"name":"DSP India T.I.G.E.R. Fund","amc":"DSP MF","category":"Equity","subCategory":"Sectoral – Infrastructure"},{"row":545,"name":"DSP Large & Mid Cap Fund","amc":"DSP MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":546,"name":"DSP Large Cap Fund","amc":"DSP MF","category":"Equity","subCategory":"Large Cap"},{"row":547,"name":"DSP Mid Cap Fund","amc":"DSP MF","category":"Equity","subCategory":"Mid Cap"},{"row":548,"name":"DSP Multicap Fund","amc":"DSP MF","category":"Equity","subCategory":"Multi Cap"},{"row":549,"name":"DSP Natural Resources and New Energy Fund","amc":"DSP MF","category":"Equity","subCategory":"Thematic – Resources/Energy"},{"row":550,"name":"DSP Quant Fund","amc":"DSP MF","category":"Equity","subCategory":"Quant"},{"row":551,"name":"DSP Small Cap Fund","amc":"DSP MF","category":"Equity","subCategory":"Small Cap"},{"row":552,"name":"DSP VALUE FUND","amc":"DSP MF","category":"Equity","subCategory":"Value/Contra"},{"row":553,"name":"DSP Aggressive Hybrid Fund (Erstwhile DSP Equity &","amc":"DSP MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":554,"name":"DSP Arbitrage Fund","amc":"DSP MF","category":"Hybrid","subCategory":"Arbitrage"},{"row":555,"name":"DSP Dynamic Asset Allocation Fund","amc":"DSP MF","category":"Hybrid","subCategory":"Multi Asset"},{"row":556,"name":"DSP Equity Savings Fund","amc":"DSP MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":557,"name":"DSP Multi Asset Allocation Fund","amc":"DSP MF","category":"Hybrid","subCategory":"Multi Asset"},{"row":558,"name":"DSP Regular Savings Fund","amc":"DSP MF","category":"Hybrid","subCategory":"Conservative Hybrid"},{"row":559,"name":"DSP 10Y G-Sec Fund","amc":"DSP MF","category":"Debt","subCategory":"Gilt"},{"row":560,"name":"DSP Banking & PSU Debt Fund","amc":"DSP MF","category":"Debt","subCategory":"Banking & PSU Debt"},{"row":561,"name":"DSP Bond Fund","amc":"DSP MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":562,"name":"DSP Corporate Bond Fund","amc":"DSP MF","category":"Debt","subCategory":"Corporate Bond"},{"row":563,"name":"DSP Credit Risk Fund","amc":"DSP MF","category":"Debt","subCategory":"Credit Risk"},{"row":564,"name":"DSP Floater Fund","amc":"DSP MF","category":"Debt","subCategory":"Floater"},{"row":565,"name":"DSP Gilt Fund (Erstwhile DSP Government","amc":"DSP MF","category":"Debt","subCategory":"Gilt"},{"row":566,"name":"DSP Liquidity Fund","amc":"DSP MF","category":"Debt","subCategory":"Liquid"},{"row":567,"name":"DSP Low Duration Fund","amc":"DSP MF","category":"Debt","subCategory":"Low Duration"},{"row":568,"name":"DSP Overnight Fund","amc":"DSP MF","category":"Debt","subCategory":"Overnight"},{"row":569,"name":"DSP Savings Fund","amc":"DSP MF","category":"Debt","subCategory":"Money Market"},{"row":570,"name":"DSP Short Term Fund","amc":"DSP MF","category":"Debt","subCategory":"Short Duration"},{"row":571,"name":"DSP Strategic Bond Fund","amc":"DSP MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":572,"name":"DSP Ultra Short Fund","amc":"DSP MF","category":"Debt","subCategory":"Ultra Short Duration"},{"row":573,"name":"DSP BSE Liquid Rate ETF","amc":"DSP MF","category":"ETF","subCategory":"Liquid ETF"},{"row":574,"name":"DSP BSE Sensex ETF","amc":"DSP MF","category":"ETF","subCategory":"Sensex ETF"},{"row":575,"name":"DSP BSE Sensex Next 30 ETF","amc":"DSP MF","category":"ETF","subCategory":"Sensex ETF"},{"row":576,"name":"DSP Gold ETF","amc":"DSP MF","category":"ETF","subCategory":"Gold ETF"},{"row":577,"name":"DSP MSCI India ETF","amc":"DSP MF","category":"ETF","subCategory":"Broad Market ETF"},{"row":578,"name":"DSP NIFTY 1D Rate Liquid ETF","amc":"DSP MF","category":"ETF","subCategory":"Liquid ETF"},{"row":579,"name":"DSP NIFTY 50 ETF","amc":"DSP MF","category":"ETF","subCategory":"Nifty 50 ETF"},{"row":580,"name":"DSP NIFTY MIDCAP 150 QUALITY 50 ETF","amc":"DSP MF","category":"ETF","subCategory":"Midcap ETF"},{"row":581,"name":"DSP Nifty 50 Equal Weight ETF","amc":"DSP MF","category":"ETF","subCategory":"Equal Weight ETF"},{"row":582,"name":"DSP Nifty Bank ETF","amc":"DSP MF","category":"ETF","subCategory":"Bank ETF"},{"row":583,"name":"DSP Nifty Healthcare ETF","amc":"DSP MF","category":"ETF","subCategory":"Healthcare ETF"},{"row":584,"name":"DSP Nifty IT ETF","amc":"DSP MF","category":"ETF","subCategory":"IT ETF"},{"row":585,"name":"DSP Nifty Midcap 150 ETF","amc":"DSP MF","category":"ETF","subCategory":"Midcap ETF"},{"row":586,"name":"DSP Nifty Next 50 ETF","amc":"DSP MF","category":"ETF","subCategory":"Nifty Next 50 ETF"},{"row":587,"name":"DSP Nifty PSU Bank ETF","amc":"DSP MF","category":"ETF","subCategory":"Bank ETF"},{"row":588,"name":"DSP Nifty Private Bank ETF","amc":"DSP MF","category":"ETF","subCategory":"Bank ETF"},{"row":589,"name":"DSP Nifty Smallcap 250 ETF","amc":"DSP MF","category":"ETF","subCategory":"Smallcap ETF"},{"row":590,"name":"DSP Nifty Top 10 Equal Weight ETF","amc":"DSP MF","category":"ETF","subCategory":"Equal Weight ETF"},{"row":591,"name":"DSP Nifty500 Flexicap Quality 30 ETF","amc":"DSP MF","category":"ETF","subCategory":"IT ETF"},{"row":592,"name":"DSP Silver ETF","amc":"DSP MF","category":"ETF","subCategory":"Silver ETF"},{"row":593,"name":"DSP BSE SENSEX Next 30 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Sensex Index"},{"row":594,"name":"DSP CRISIL-IBX 50:50 Gilt Plus SDL – April 2033 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Target Maturity Index"},{"row":595,"name":"DSP Nifty 50 Equal Weight Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Equal Weight Index"},{"row":596,"name":"DSP Nifty 50 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Nifty 50 Index"},{"row":597,"name":"DSP Nifty 500 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Nifty 50 Index"},{"row":598,"name":"DSP Nifty Bank Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Bank Index"},{"row":599,"name":"DSP Nifty Healthcare Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Healthcare Index"},{"row":600,"name":"DSP Nifty IT Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"IT Index"},{"row":601,"name":"DSP Nifty Midcap 150 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Midcap Index"},{"row":602,"name":"DSP Nifty Midcap 150 Quality 50 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Midcap Index"},{"row":603,"name":"DSP Nifty Next 50 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Nifty Next 50 Index"},{"row":604,"name":"DSP Nifty Private Bank Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Bank Index"},{"row":605,"name":"DSP Nifty SDL Plus G-Sec Jun 2028 30:70 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Target Maturity Index"},{"row":606,"name":"DSP Nifty SDL Plus G-Sec Sep 2027 50:50 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Target Maturity Index"},{"row":607,"name":"DSP Nifty Smallcap 250 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Smallcap Index"},{"row":608,"name":"DSP Nifty Smallcap250 Quality 50 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Smallcap Index"},{"row":609,"name":"DSP Nifty Top 10 Equal Weight Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"Equal Weight Index"},{"row":610,"name":"DSP Nifty500 Flexicap Quality 30 Index Fund","amc":"DSP MF","category":"Index Fund","subCategory":"IT Index"},{"row":611,"name":"DSP Global Clean Energy Overseas Equity Omni FoF","amc":"DSP MF","category":"FOF","subCategory":"International FOF"},{"row":612,"name":"DSP Global Innovation Overseas Equity Omni FoF","amc":"DSP MF","category":"FOF","subCategory":"International FOF"},{"row":613,"name":"DSP Gold ETF Fund of Fund","amc":"DSP MF","category":"FOF","subCategory":"Gold FOF"},{"row":614,"name":"DSP Income Plus Arbitrage Omni FoF (Erstwhile known as","amc":"DSP MF","category":"FOF","subCategory":"Hybrid FOF"},{"row":615,"name":"DSP Silver ETF Fund of Fund","amc":"DSP MF","category":"FOF","subCategory":"Silver FOF"},{"row":616,"name":"DSP US Specific Debt Passive FoF (Erstwhile known as","amc":"DSP MF","category":"FOF","subCategory":"International FOF"},{"row":617,"name":"DSP US Specific Equity Omni FoF (Erstwhile known as DSP US","amc":"DSP MF","category":"FOF","subCategory":"International FOF"},{"row":618,"name":"DSP World Gold Mining Overseas Equity Omni FoF","amc":"DSP MF","category":"FOF","subCategory":"Gold FOF"},{"row":619,"name":"DSP World Mining Overseas Equity Omni FoF (Erstwhile","amc":"DSP MF","category":"FOF","subCategory":"International FOF"},{"row":620,"name":"Mirae Asset Large Cap Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Large Cap"},{"row":621,"name":"Mirae Asset Emerging Bluechip Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Large & Mid Cap"},{"row":622,"name":"Mirae Asset Midcap Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Mid Cap"},{"row":623,"name":"Mirae Asset ELSS Tax Saver Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"ELSS"},{"row":624,"name":"Mirae Asset Focused Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Focused"},{"row":625,"name":"Mirae Asset Multi Cap Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Multi Cap"},{"row":626,"name":"Mirae Asset Flexi Cap Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Flexi Cap"},{"row":627,"name":"Mirae Asset Healthcare Fund","amc":"Mirae Asset MF","category":"Equity","subCategory":"Sectoral / Thematic"},{"row":628,"name":"Mirae Asset Hybrid Equity Fund","amc":"Mirae Asset MF","category":"Hybrid","subCategory":"Aggressive Hybrid"},{"row":629,"name":"Mirae Asset Equity Savings Fund","amc":"Mirae Asset MF","category":"Hybrid","subCategory":"Equity Savings"},{"row":630,"name":"Mirae Asset Liquid Fund","amc":"Mirae Asset MF","category":"Debt","subCategory":"Liquid"},{"row":631,"name":"Mirae Asset Short Duration Fund","amc":"Mirae Asset MF","category":"Debt","subCategory":"Short Duration"},{"row":632,"name":"Mirae Asset Dynamic Bond Fund","amc":"Mirae Asset MF","category":"Debt","subCategory":"Dynamic Bond"},{"row":633,"name":"Mirae Asset Nifty 50 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Nifty 50 ETF"},{"row":634,"name":"Mirae Asset Nifty Next 50 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Nifty Next 50 ETF"},{"row":635,"name":"Mirae Asset Nifty Midcap 150 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Midcap ETF"},{"row":636,"name":"Mirae Asset Nifty Smallcap 250 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Smallcap ETF"},{"row":637,"name":"Mirae Asset Nifty Bank ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Bank ETF"},{"row":638,"name":"Mirae Asset Nifty IT ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"IT ETF"},{"row":639,"name":"Mirae Asset Nifty Financial Services ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Financial Services ETF"},{"row":640,"name":"Mirae Asset Nifty Private Bank ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Bank ETF"},{"row":641,"name":"Mirae Asset Nifty India Manufacturing ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":642,"name":"Mirae Asset Nifty PSU Bank ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Bank ETF"},{"row":643,"name":"Mirae Asset Gold ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Gold ETF"},{"row":644,"name":"Mirae Asset Silver ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Silver ETF"},{"row":645,"name":"Mirae Asset Nifty 50 Equal Weight ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Equal Weight ETF"},{"row":646,"name":"Mirae Asset Nifty100 Low Volatility 30 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Factor ETF"},{"row":647,"name":"Mirae Asset Nifty200 Momentum 30 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Factor ETF"},{"row":648,"name":"Mirae Asset Nifty Alpha 50 ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Factor ETF"},{"row":649,"name":"Mirae Asset Nifty Realty ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":650,"name":"Mirae Asset Nifty FMCG ETF","amc":"Mirae Asset MF","category":"ETF","subCategory":"Sectoral ETF"},{"row":651,"name":"Mirae Asset Nifty 50 Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Nifty 50 Index"},{"row":652,"name":"Mirae Asset Nifty Next 50 Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Nifty Next 50 Index"},{"row":653,"name":"Mirae Asset Nifty Midcap 150 Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Midcap Index"},{"row":654,"name":"Mirae Asset Nifty Smallcap 250 Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Smallcap Index"},{"row":655,"name":"Mirae Asset Large & Midcap Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Large & Midcap Index"},{"row":656,"name":"Mirae Asset Nifty India Consumption Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Sectoral Index"},{"row":657,"name":"Mirae Asset Nifty Bank Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Bank Index"},{"row":658,"name":"Mirae Asset Nifty Financial Services Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Financial Services Index"},{"row":659,"name":"Mirae Asset ELSS Tax Saver Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"ELSS Index"},{"row":660,"name":"Mirae Asset Nifty200 Alpha 30 Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Factor Index"},{"row":661,"name":"Mirae Asset Nifty IT Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"IT Index"},{"row":662,"name":"Mirae Asset Nifty Healthcare Index Fund","amc":"Mirae Asset MF","category":"Index Fund","subCategory":"Healthcare Index"},{"row":663,"name":"Mirae Asset Nifty 50 ETF Fund of Fund","amc":"Mirae Asset MF","category":"FOF","subCategory":"ETF FOF"},{"row":664,"name":"Mirae Asset Gold ETF Fund of Fund","amc":"Mirae Asset MF","category":"FOF","subCategory":"Gold FOF"},{"row":665,"name":"Mirae Asset Silver ETF Fund of Fund","amc":"Mirae Asset MF","category":"FOF","subCategory":"Silver FOF"},{"row":666,"name":"Mirae Asset NYSE FANG+ ETF Fund of Fund","amc":"Mirae Asset MF","category":"FOF","subCategory":"International FOF"},{"row":667,"name":"Mirae Asset S&P 500 Top 50 ETF Fund of Fund","amc":"Mirae Asset MF","category":"FOF","subCategory":"International FOF"},{"row":668,"name":"Mirae Asset Hang Seng TECH ETF Fund of Fund","amc":"Mirae Asset MF","category":"FOF","subCategory":"International FOF"},{"row":669,"name":"Mirae Asset Global Electric & Autonomous Vehicles ETFs FoF","amc":"Mirae Asset MF","category":"FOF","subCategory":"International FOF"},{"row":670,"name":"Mirae Asset Global X Artificial Intelligence & Technology ETF FoF","amc":"Mirae Asset MF","category":"FOF","subCategory":"International FOF"}];
+
+// ==================== STATE ====================
+let allMfFunds = []; // from API
+let fundResults = FUNDS.map(f => ({...f, status:'pending', schemeCode:null, nav:null, navDate:null, candidates:[],
+  r1y:null, r3y:null, r5y:null, rInc:null, inceptionDate:null}));
+let filteredResults = [...fundResults];
+let fetching = false;
+let stopRequested = false;
+let sortCol = 'row', sortAsc = true;
+
+// ==================== UTILS ====================
+function normalise(s) {
+  return s.toLowerCase()
+    .replace(/[''`]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(fund|scheme|plan|direct|growth|regular|idcw|dividend|payout|reinvestment)\b/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+
+function scoreName(query, candidate) {
+  const q = normalise(query);
+  const c = normalise(candidate);
+  if (c === q) return 100;
+  if (c.includes(q) || q.includes(c)) return 80;
+  const qw = q.split(' ').filter(Boolean);
+  const cw = c.split(' ').filter(Boolean);
+  const matches = qw.filter(w => cw.includes(w)).length;
+  return Math.round((matches / Math.max(qw.length, cw.length)) * 60);
+}
+
+function calcReturn(navNow, navThen) {
+  if (!navNow || !navThen || navThen <= 0) return null;
+  return ((navNow / navThen - 1) * 100).toFixed(2);
+}
+
+function calcCAGR(navNow, navThen, years) {
+  if (!navNow || !navThen || navThen <= 0 || years <= 0) return null;
+  return (((navNow / navThen) ** (1/years) - 1) * 100).toFixed(2);
+}
+
+function getDateNAgo(historicalData, yearsAgo) {
+  if (!historicalData || historicalData.length === 0) return null;
+  const target = new Date();
+  target.setFullYear(target.getFullYear() - yearsAgo);
+  // find closest date
+  let closest = null, minDiff = Infinity;
+  for (const d of historicalData) {
+    const dt = new Date(d.date.split('-').reverse().join('-'));
+    const diff = Math.abs(dt - target);
+    if (diff < minDiff) { minDiff = diff; closest = d; }
+  }
+  return closest;
+}
+
+// ==================== FETCH LOGIC ====================
+async function startFetch() {
+  if (fetching) return;
+  fetching = true; stopRequested = false;
+  document.getElementById('btnFetch').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+  document.getElementById('progressWrap').classList.add('visible');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('btnExportCSV').disabled = true;
+  document.getElementById('btnExportJSON').disabled = true;
+
+  try {
+    // Step 1: Fetch fund list
+    updateProgress(0, 'Fetching master fund list from api.mfapi.in...');
+    addLog('Connecting to api.mfapi.in/mf...', '');
+    const resp = await fetch('https://api.mfapi.in/mf');
+    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    allMfFunds = await resp.json();
+    document.getElementById('statApi').textContent = '✓ Online';
+    document.getElementById('statApi').style.color = 'var(--green)';
+    addLog(`Got ${allMfFunds.length} funds from API`, 'ok');
+
+    // Step 2: Match each fund
+    const total = fundResults.length;
+    for (let i = 0; i < total; i++) {
+      if (stopRequested) { addLog('Stopped by user', 'skip'); break; }
+
+      const fund = fundResults[i];
+      updateProgress((i / total) * 100, `Matching [${i+1}/${total}] ${fund.name.substring(0,40)}...`);
+
+      // Find candidates (fuzzy match on name)
+      const candidates = allMfFunds.filter(m => {
+        const score = scoreName(fund.name, m.schemeName);
+        return score >= 45;
+      }).map(m => ({...m, score: scoreName(fund.name, m.schemeName)}))
+        .sort((a,b) => b.score - a.score)
+        .slice(0, 8);
+
+      // Filter: prefer Growth/Regular - skip IDCW/Direct for primary
+      const growthCands = candidates.filter(c =>
+        /growth/i.test(c.schemeName) && !/direct/i.test(c.schemeName) && !/idcw/i.test(c.schemeName)
+      );
+      const bestCands = growthCands.length > 0 ? growthCands : candidates;
+
+      fund.candidates = candidates;
+
+      if (bestCands.length === 0) {
+        fund.status = 'unmatched';
+        addLog(`✗ No match: ${fund.name.substring(0,45)}`, 'err');
+      } else if (bestCands.length === 1 || bestCands[0].score >= 80) {
+        await fetchAndSetFundData(fund, bestCands[0].schemeCode);
+        addLog(`✓ ${fund.name.substring(0,35)} → ${bestCands[0].schemeName.substring(0,35)} [${bestCands[0].schemeCode}]`, 'ok');
+      } else {
+        fund.status = 'multiple';
+        fund.candidates = bestCands.slice(0,6);
+        addLog(`~ Multiple matches: ${fund.name.substring(0,40)}`, 'skip');
+      }
+
+      updateStats();
+      renderTableRow(i);
+
+      // throttle - 2 requests per second max
+      await sleep(150);
+    }
+
+    updateProgress(100, 'Complete!');
+    document.getElementById('btnExportCSV').disabled = false;
+    document.getElementById('btnExportJSON').disabled = false;
+    document.getElementById('exportNote').classList.add('visible');
+    addLog(`Done. Matched: ${fundResults.filter(f=>f.status==='matched').length}, Unmatched: ${fundResults.filter(f=>f.status==='unmatched').length}`, 'ok');
+
+  } catch(e) {
+    document.getElementById('statApi').textContent = '✗ Error';
+    document.getElementById('statApi').style.color = 'var(--red)';
+    addLog('Error: ' + e.message, 'err');
+    updateProgress(0, 'Error fetching data. Check CORS / network.');
+  }
+
+  fetching = false;
+  document.getElementById('btnFetch').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+}
+
+async function fetchAndSetFundData(fund, schemeCode) {
+  try {
+    const r = await fetch(`https://api.mfapi.in/mf/${schemeCode}`);
+    const d = await r.json();
+    if (!d.data || d.data.length === 0) { fund.status = 'unmatched'; return; }
+
+    const meta = d.meta || {};
+    const navNow = parseFloat(d.data[0].nav);
+    fund.navDate = d.data[0].date;
+    fund.nav = navNow;
+    fund.schemeCode = schemeCode;
+    fund.schemeName = meta.scheme_name || '';
+    fund.inceptionDate = meta.scheme_start_date || '';
+
+    // Calculate returns from historical NAV
+    const hist = d.data;
+    const d1y = getDateNAgo(hist, 1);
+    const d3y = getDateNAgo(hist, 3);
+    const d5y = getDateNAgo(hist, 5);
+    const dInc = hist[hist.length - 1]; // oldest = inception
+
+    fund.r1y = d1y ? calcReturn(navNow, parseFloat(d1y.nav)) : null;
+    fund.r3y = d3y ? calcCAGR(navNow, parseFloat(d3y.nav), 3) : null;
+    fund.r5y = d5y ? calcCAGR(navNow, parseFloat(d5y.nav), 5) : null;
+    if (dInc) {
+      const incDate = new Date(dInc.date.split('-').reverse().join('-'));
+      const years = (new Date() - incDate) / (365.25 * 24 * 3600 * 1000);
+      fund.rInc = calcCAGR(navNow, parseFloat(dInc.nav), years);
+    }
+    fund.status = 'matched';
+  } catch(e) {
+    fund.status = 'unmatched';
+  }
+}
+
+function stopFetch() { stopRequested = true; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ==================== UI UPDATES ====================
+function updateProgress(pct, label) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+function addLog(msg, type) {
+  const log = document.getElementById('progressLog');
+  const span = document.createElement('span');
+  span.className = type === 'ok' ? 'log-ok' : type === 'skip' ? 'log-skip' : type === 'err' ? 'log-err' : '';
+  span.textContent = msg + '\n';
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateStats() {
+  const matched = fundResults.filter(f => f.status === 'matched').length;
+  const unmatched = fundResults.filter(f => f.status === 'unmatched').length;
+  const multiple = fundResults.filter(f => f.status === 'multiple').length;
+  const withRet = fundResults.filter(f => f.r1y !== null).length;
+  document.getElementById('statMatched').textContent = matched;
+  document.getElementById('statUnmatched').textContent = unmatched;
+  document.getElementById('statMulti').textContent = multiple;
+  document.getElementById('statReturns').textContent = withRet;
+  document.getElementById('tableCount').textContent = `Showing ${filteredResults.length} funds`;
+}
+
+// ==================== TABLE ====================
+function renderTableRow(idx) {
+  const fund = fundResults[idx];
+  // find row in table
+  const tbody = document.getElementById('tableBody');
+  const rows = tbody.querySelectorAll('tr');
+  // rebuild filtered table
+  applyFilters();
+}
+
+function buildTable() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  if (filteredResults.length === 0) {
+    document.getElementById('emptyState').style.display = 'block';
+    return;
+  }
+  document.getElementById('emptyState').style.display = 'none';
+
+  for (const fund of filteredResults) {
+    const tr = document.createElement('tr');
+    const statusBadge = fund.status === 'matched'
+      ? `<span class="badge badge-matched">Matched</span>`
+      : fund.status === 'multiple'
+      ? `<span class="badge badge-multiple">Multi</span>`
+      : fund.status === 'unmatched'
+      ? `<span class="badge badge-unmatched">No Match</span>`
+      : `<span class="badge badge-pending">Pending</span>`;
+
+    const navCell = fund.nav ? `₹${parseFloat(fund.nav).toFixed(4)}<span class="nav-date">${fund.navDate||''}</span>` : '—';
+    const r = (v, suffix='%') => v !== null ? `<td class="${parseFloat(v)>=0?'ret-pos':'ret-neg'}">${v}${suffix}</td>` : '<td class="ret-na">—</td>';
+
+    // Match selector for multi-match
+    let matchCell = '—';
+    if (fund.status === 'multiple' && fund.candidates.length > 0) {
+      matchCell = `<select class="match-sel" onchange="selectMatch(${fund.row}, this.value)">
+        <option value="">— Select —</option>
+        ${fund.candidates.map(c=>`<option value="${c.schemeCode}">${c.schemeName.substring(0,50)} [${c.schemeCode}]</option>`).join('')}
+      </select>`;
+    } else if (fund.status === 'matched' && fund.schemeName) {
+      matchCell = `<span style="font-size:9.5px;color:var(--text-dim);max-width:180px;display:block;overflow:hidden;text-overflow:ellipsis;">${fund.schemeName.substring(0,50)}</span>`;
+    }
+
+    tr.innerHTML = `
+      <td style="color:var(--text-dim);font-family:'IBM Plex Mono',monospace;font-size:10px;">${fund.row}</td>
+      <td class="fund-name">${fund.name}</td>
+      <td class="amc">${fund.amc}</td>
+      <td class="cat">${fund.category}</td>
+      <td>${statusBadge}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accent);">${fund.schemeCode||'—'}</td>
+      <td class="nav-val">${navCell}</td>
+      ${r(fund.r1y)}${r(fund.r3y)}${r(fund.r5y)}${r(fund.rInc)}
+      <td>${matchCell}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function selectMatch(rowNum, schemeCode) {
+  if (!schemeCode) return;
+  const fund = fundResults.find(f => f.row === rowNum);
+  if (!fund) return;
+  await fetchAndSetFundData(fund, schemeCode);
+  updateStats();
+  applyFilters();
+}
+
+// ==================== FILTERS & SORT ====================
+function applyFilters() {
+  const amc = document.getElementById('filterAmc').value;
+  const cat = document.getElementById('filterCat').value;
+  const status = document.getElementById('filterStatus').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+
+  filteredResults = fundResults.filter(f => {
+    if (amc && f.amc !== amc) return false;
+    if (cat && !f.category.startsWith(cat)) return false;
+    if (status && f.status !== status) return false;
+    if (search && !f.name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  // sort
+  filteredResults.sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (va === null || va === undefined) va = sortAsc ? Infinity : -Infinity;
+    if (vb === null || vb === undefined) vb = sortAsc ? Infinity : -Infinity;
+    if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortAsc ? va - vb : vb - va;
+  });
+
+  document.getElementById('tableCount').textContent = `Showing ${filteredResults.length} of ${fundResults.length} funds`;
+  buildTable();
+}
+
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  applyFilters();
+}
+
+// ==================== EXPORT ====================
+function exportCSV() {
+  const headers = ['Row','Fund Name','AMC','Category','Sub-Category','Status','Scheme Code','NAV','NAV Date','1Y Return%','3Y CAGR%','5Y CAGR%','Inception CAGR%'];
+  const rows = fundResults.map(f => [
+    f.row, `"${f.name}"`, `"${f.amc}"`, f.category, f.subCategory, f.status,
+    f.schemeCode||'', f.nav||'', f.navDate||'', f.r1y||'', f.r3y||'', f.r5y||'', f.rInc||''
+  ].join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  download('mf_data_' + new Date().toISOString().split('T')[0] + '.csv', csv, 'text/csv');
+}
+
+function exportJSON() {
+  const data = fundResults.filter(f => f.status === 'matched').map(f => ({
+    excelRow: f.row, fundName: f.name, amc: f.amc, category: f.category, subCategory: f.subCategory,
+    schemeCode: f.schemeCode, schemeName: f.schemeName, nav: f.nav, navDate: f.navDate,
+    inceptionDate: f.inceptionDate, returns: { r1y: f.r1y, r3y: f.r3y, r5y: f.r5y, rInc: f.rInc }
+  }));
+  download('mf_matched_data_' + new Date().toISOString().split('T')[0] + '.json', JSON.stringify(data, null, 2), 'application/json');
+}
+
+function download(filename, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename;
+  a.click();
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+
+// ==================== INIT ====================
+applyFilters(); // render initial pending table
+updateStats();
+</script>
+</body>
+</html>
